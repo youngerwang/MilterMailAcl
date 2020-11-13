@@ -1,0 +1,12 @@
+Trusted NW:
+10.0.0.0/24
+10.0.2.1
+
+Untrusted NW:
+10.0.1.0/24
+
+a@example.org 10.0.0.1 b@foo.com accept
+a@example.org 10.0.0.252 c@foo.com accept
+b@example.org 10.0.2.1 b@foo.com accept
+b@example.org 10.0.1.1 b@foo.com accept
+

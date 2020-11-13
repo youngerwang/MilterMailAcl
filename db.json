@@ -1,0 +1,49 @@
+[
+    {
+        "rule_id": 100,
+        "senders": [
+            "a@example.org",
+            "b@example.org"
+        ],
+        "source_ips": [
+            "10.0.0.0/24",
+            "10.0.2.1"
+        ],
+        "receivers": [
+            "a@bar.com",
+            "b@bar.com"
+        ],
+        "action": "accept",
+        "new_sender": ""
+    },
+    {
+        "rule_id": 200,
+        "senders": [
+            "a@foo.com",
+            "b@foo.com"
+        ],
+        "source_ips": [
+            "10.0.2.0/24"
+        ],
+        "receivers": [
+            "a@bar.com",
+            "b@gar.com"
+        ],
+        "action": "accept",
+        "new_sender": "no-reply@foo.com"
+    },
+    {
+        "rule_id": 300,
+        "senders": ["b@foo.com"
+        ],
+        "source_ips": [
+            "10.0.0.1"
+        ],
+        "receivers": [
+            "c@foo.com",
+            "d@bar.com"
+        ],
+        "action": "reject",
+        "new_sender": ""
+    }
+]
