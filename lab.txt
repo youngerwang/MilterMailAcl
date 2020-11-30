@@ -2,8 +2,15 @@ Trusted NW:
 10.0.0.0/24
 10.0.2.1
 
+Specially trusted NW:
+10.0.8.0/24
+
 Untrusted NW:
 10.0.1.0/24
+
+Specially trusted user:
+pear.com
+peach.com
 
 a@example.org 10.0.0.1 b@foo.com accept
 a@example.org 10.0.0.252 c@foo.com accept

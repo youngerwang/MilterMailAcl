@@ -45,5 +45,20 @@
         ],
         "action": "reject",
         "new_sender": ""
+    },
+    {
+        "rule_id": 400,
+        "senders": ["regex: .+@pear.com",
+                    "regex: .+@peach.com"
+        ],
+        "source_ips": [
+            "10.8.0.0/16"
+        ],
+        "receivers": [
+            "regex: .+@foo.com",
+            "regex: .+@bar.com"
+        ],
+        "action": "accept",
+        "new_sender": ""
     }
 ]

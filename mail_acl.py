@@ -9,6 +9,7 @@ import Milter.utils
 from email.header import decode_header
 import json
 import datetime
+import re
 
 class MailAcl(Milter.Milter):
     rules = []
@@ -45,20 +46,22 @@ class MailAcl(Milter.Milter):
     def eom(self):
         #TODO: we also need to consider regex
         print("Start matching rules at", datetime.datetime.now())
-        for r in self.rules:
-            if  self.envelope_from in r.senders \
-                and r.receivers.issuperset(self.envelope_to)\
-                and self.header_sender in r.senders \
-                and r.receivers.issuperset(self.header_receivers)\
-                and Milter.utils.iniplist(self.client_ip, r.source_ips):
+        sender_set = {self.header_sender, self.envelope_from}
+        receiver_set = set().union(self.envelope_to, self.header_receivers)
+
+        for r in MailAcl.rules:
+            if r.is_valid == True \
+               and r.match_sender(sender_set) \
+               and r.match_receiver(receiver_set) \
+               and ilter.utils.iniplist(self.client_ip, r.source_ips):
                 if r.action == "accept":
                     if r.new_sender != "":
                         self.chgheader("From", 0, r.new_sender)
                         self.chgfrom(r.new_sender)
-                    print("Accepted by rule #", r.rule_id)
+                    #print("Accepted by rule #", r.rule_id)
                     return Milter.ACCEPT
                 else:
-                    print("Rejected by rule #", r.rule_id)
+                    #print("Rejected by rule #", r.rule_id)
                     return Milter.REJECT
             else:
                 pass
@@ -77,6 +80,7 @@ class MailRule:
         self.action = action
         self.new_sender = new_sender
         self.counter = 0
+        self.is_valid = True
     
     def __init__(self, json_object):
         if "rule_id" not in json_object \
@@ -89,15 +93,57 @@ class MailRule:
         else:
             #TODO: we need to validate source_ips and action
             self.rule_id = json_object["rule_id"]
-            self.senders = set([i.lower() for i in json_object["senders"]])
+            try: 
+                self.senders = MailRule.email_address_filter(json_object["senders"])
+            except re.error as e:
+                syslog.syslog(syslog.LOG_ERR, "Fail importing rule {}: {}".format(self.rule_id, e.msg))
+                self.is_valid = False
+            #self.senders = set([i.lower() for i in json_object["senders"]])
             self.source_ips = json_object["source_ips"]
-            self.receivers = set([i.lower() for i in json_object["receivers"]])
+            try: 
+                self.receivers = MailRule.email_address_filter(json_object["receivers"])
+            except re.error as e:
+                syslog.syslog(syslog.LOG_ERR, "Fail importing rule {}: {}".format(self.rule_id, e.msg))
+                self.is_valid = False
+            #self.receivers = set([i.lower() for i in json_object["receivers"]])
             self.action = json_object["action"].lower()
             self.new_sender = json_object["new_sender"].lower()
             if "counter"  in json_object:
                 self.counter = json_object["counter"]
             else:
                 self.counter = 0
+
+    @staticmethod
+    def email_address_filter(l):
+        a = []
+        for i in l:
+            if i.startswith("regex:"):
+                a.append(re.compile(i.split(":")[1].strip()))
+            else:
+                a.append(i).strip()
+
+        return a
+
+    @staticmethod
+    def match(address_list, whitelist):
+        for actual_address in address_list:
+            is_it_matched = False
+            for allowed_address in whitelist: 
+                if isinstance(allowed_address, re.Pattern) and allowed_address.match(s):
+                    is_it_matched = True
+                    break
+                elif allowed_address == actual_address:
+                    is_it_matched = True
+                    break
+            if is_it_matched == False:
+                return False
+        return True
+
+    def match_sender(self, actual_senders):
+        return MailRule.match(actual_senders, self.senders)
+
+    def match_receiver(self, actual_receivers):
+        return MailRule.match(actual_receivers, self.receivers)
 
 def load_rules(config):
     with open(config, "r", encoding="utf-8") as f:
