@@ -45,7 +45,7 @@ class MailAcl(Milter.Milter):
 
     def eom(self):
         #TODO: we also need to consider regex
-        print("Start matching rules at", datetime.datetime.now())
+        syslog.syslog(syslog.LOG_DEBUG, "Start matching rules at {}".format(datetime.datetime.now()))
         sender_set = {self.header_sender, self.envelope_from}
         receiver_set = set().union(self.envelope_to, self.header_receivers)
 
@@ -53,22 +53,21 @@ class MailAcl(Milter.Milter):
             if r.is_valid == True \
                and r.match_sender(sender_set) \
                and r.match_receiver(receiver_set) \
-               and ilter.utils.iniplist(self.client_ip, r.source_ips):
+               and Milter.utils.iniplist(self.client_ip, r.source_ips):
                 if r.action == "accept":
                     if r.new_sender != "":
                         self.chgheader("From", 0, r.new_sender)
                         self.chgfrom(r.new_sender)
-                    #print("Accepted by rule #", r.rule_id)
+                    
+                    syslog.syslog(syslog.LOG_DEBUG, "Accepted by rule #{}".format(r.rule_id))
                     return Milter.ACCEPT
                 else:
-                    #print("Rejected by rule #", r.rule_id)
+                    syslog.syslog(syslog.LOG_DEBUG, "Rejected by rule #{}".format(r.rule_id))
                     return Milter.REJECT
             else:
                 pass
-                #print("Rule", r.rule_id, "not matched.")
-
-        print("Finish matching rules at", datetime.datetime.now())
-        print("Rejected because no match is found")
+        syslog.syslog(syslog.LOG_DEBUG, "Finish matching rules at {}".format(datetime.datetime.now()))
+        syslog.syslog(syslog.LOG_DEBUG, "Rejected because no match is found")
         return Milter.REJECT
 
 class MailRule:
@@ -98,16 +97,15 @@ class MailRule:
             except re.error as e:
                 syslog.syslog(syslog.LOG_ERR, "Fail importing rule {}: {}".format(self.rule_id, e.msg))
                 self.is_valid = False
-            #self.senders = set([i.lower() for i in json_object["senders"]])
+
             self.source_ips = json_object["source_ips"]
             try: 
                 self.receivers = MailRule.email_address_filter(json_object["receivers"])
             except re.error as e:
                 syslog.syslog(syslog.LOG_ERR, "Fail importing rule {}: {}".format(self.rule_id, e.msg))
                 self.is_valid = False
-            #self.receivers = set([i.lower() for i in json_object["receivers"]])
-            self.action = json_object["action"].lower()
-            self.new_sender = json_object["new_sender"].lower()
+            self.action = json_object["action"].strip().lower()
+            self.new_sender = json_object["new_sender"].strip().lower()
             if "counter"  in json_object:
                 self.counter = json_object["counter"]
             else:
@@ -129,13 +127,13 @@ class MailRule:
         for actual_address in address_list:
             is_it_matched = False
             for allowed_address in whitelist: 
-                if isinstance(allowed_address, re.Pattern) and allowed_address.match(s):
+                if isinstance(allowed_address, re.Pattern) and allowed_address.match(actual_address):
                     is_it_matched = True
                     break
                 elif allowed_address == actual_address:
                     is_it_matched = True
                     break
-            if is_it_matched == False:
+            if not is_it_matched:
                 return False
         return True
 
@@ -153,6 +151,7 @@ def load_rules(config):
             #print(r.rule_id, r.senders, r.source_ips, r.receivers, r.action, r.new_sender, r.counter)
             MailAcl.rules.append(r)
 
+    syslog.syslog(syslog.LOG_INFO, "{} rules loaded".format(len(MailAcl.rules)))
     # print("----imported rules----")
     # for r in MailAcl.rules:
     #     print(r.senders, r.source_ips, r.receivers, r.action)
@@ -176,10 +175,9 @@ def main():
     socketspec = "inet:" + server_port + ":" + server_ip
     syslog.openlog(logoption=syslog.LOG_PID, facility=syslog.LOG_MAIL)
 
-    print("Start loading rules at", datetime.datetime.now())
+    syslog.syslog(syslog.LOG_INFO, "Start loading rules at {}".format(datetime.datetime.now()))
     load_rules(args.config)
-    print(len(MailAcl.rules), "rules loaded")
-    print("Finish loading rules at", datetime.datetime.now())
+    syslog.syslog(syslog.LOG_INFO, "Finish loading rules at {}".format(datetime.datetime.now()))
 
     Milter.factory = MailAcl
     Milter.set_flags(Milter.ADDHDRS)
@@ -187,7 +185,7 @@ def main():
     Milter.runmilter("mail_acl", socketspec, 60)
 
     # Finished
-    syslog.syslog("shutdown")
+    syslog.syslog(syslog.LOG_INFO, "shutdown")
 
 
 if __name__ == "__main__":
